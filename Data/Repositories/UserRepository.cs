@@ -19,7 +19,7 @@ namespace Data.Repositories
             {
                 Id = user.Id,
                 Email = user.Email,
-                Password = user.Password,
+                Password = user.PasswordHash,
 
             };
             return foundUser;
@@ -33,7 +33,7 @@ namespace Data.Repositories
             {
                 Id = user.Id,
                 Email = user.Email,
-                Password = user.Password,
+                Password = user.PasswordHash,
 
             };
             return foundUser;
@@ -51,10 +51,10 @@ namespace Data.Repositories
 
         public async Task Add(RegisterUserDto user) 
         {
-            var entity = new User
+            var entity = new UserEntity
             {
                 Email = user.Email,
-                Password = user.Password,
+                PasswordHash = user.Password,
             };
 
             await _context.Users.AddAsync(entity);
