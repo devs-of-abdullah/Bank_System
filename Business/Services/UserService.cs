@@ -1,5 +1,6 @@
-﻿using Data.Interfaces;
-
+﻿using Business.Interfaces;
+using Entities;
+using Data.Interfaces;
 using Entities.DTOs;
 namespace Business
 {
@@ -13,46 +14,84 @@ namespace Business
             _tokenService = token;
         }
 
-        public async Task<bool> Register(string email, string password)
+        public async Task<int> RegisterAsync(RegisterUserDto userDto)
         {
-            bool existeduser = await _repo.IsExistsByEmail(email);
-
-            if(existeduser == true)
-                return false;
+            if (await _repo.ExistsByEmailAsync(userDto.Email))
+                throw new InvalidOperationException($"'{userDto.Email}' email already exists");
 
 
-            var hashedPasssword = BCrypt.Net.BCrypt.HashPassword(password);
-            var User = new RegisterUserDto()
+            var user = new UserEntity
             {
-                
-                Email = email,
-                Password = hashedPasssword,
+                Email = userDto.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(userDto.Password)
             };
 
-             await _repo.Add(User);
+            return await _repo.AddAsync(user);
 
-             return true;
-            
+
         }
-        
-        public async Task<string> Login(string email, string password) 
-        { 
-            var user = await _repo.GetByEmail(email);
 
-            if(user == null) 
-                return string.Empty;
+        public async Task<string> LoginAsync(LoginUserDto userDto)
+        {
+            var user = await _repo.GetByEmailAsync(userDto.Email)
+                ?? throw new UnauthorizedAccessException($"{userDto.Email} is not exists");
 
-            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(password, user.Password);
+            if (!BCrypt.Net.BCrypt.Verify(userDto.Password, user.PasswordHash))
+                throw new InvalidOperationException("Wrong password");
 
-            if(!isPasswordValid) 
-                return string.Empty;
+            return _tokenService.CreateToken(user);
 
-            var token = _tokenService.CreateToken(user);
-
-            return token;
         }
-       
+
+        public async Task<List<UserDto>> GetAllAsync()
+        {
+            var users = await _repo.GetAllAsync();
+
+            return users.Select(u => new UserDto
+            {
+                Id = u.Id,
+                Email = u.Email,
+            }).ToList();
+        } 
+
+        public async Task<UserDto?> GetByIdAsync(int id)
+        {
+            var user = await _repo.GetByIdAsync(id);
+            if (user == null) return null;
+
+           
+            return new UserDto
+            {
+                Id=user.Id,
+                Email = user.Email,
+            };
+        }
+        public async Task<UserDto?> GetByEmailAsync(string email)
+        {
+            var user = await _repo.GetByEmailAsync(email);
+            if(user == null) return null;
+
+            return new UserDto
+            {
+                Id= user.Id,
+                Email = user.Email,
+            };
+        }
+        public async Task DeleteAsync(int Id)
+        {
+          await  _repo.DeleteAsync(Id);
+        }
+        public async Task UpdateAsync(int Id, UpdateUserDto dto)
+        {
+            var user = await _repo.GetByIdAsync(Id) 
+                ?? throw new KeyNotFoundException("User not found");
+
+            user.Email = dto.Email;
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+             
+            await _repo.UpdateAsync(user);
+        }
 
     }
-    
+
 }

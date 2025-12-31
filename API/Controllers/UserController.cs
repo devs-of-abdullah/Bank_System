@@ -1,7 +1,8 @@
-﻿using Business;
+﻿using Business.Interfaces;
 using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace API
 {
@@ -9,7 +10,7 @@ namespace API
     [Route("api/[controller]")]
     public class UserController : ControllerBase
     {
-         readonly IUserService _userService;
+        readonly IUserService _userService;
 
         public UserController(IUserService userService)
         {
@@ -19,42 +20,61 @@ namespace API
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterUserDto dto)
         {
-
-            if(!ModelState.IsValid) return BadRequest(ModelState);
-
-            var success = await _userService.Register(dto.Email, dto.Password);
-
-            if(!success) return BadRequest("Error creating User");
-
-            return Ok("User registered succesfully");
+            int Id = await _userService.RegisterAsync(dto);
+            return StatusCode(201, $"User registered succesfully with id: {Id}");
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginUserDto dto)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-              
-            var token = await _userService.Login(dto.Email, dto.Password);
 
-            if (string.IsNullOrEmpty(token))
-                return Unauthorized("Email or password is incorrect");
+            var token = await _userService.LoginAsync(dto);
 
-            return Ok(new
-            {
-                token
-            });
+            return Ok(new { token });
         }
+
         [Authorize]
         [HttpGet("me")]
         public IActionResult Me()
         {
             return Ok(new
             {
-                UserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
-                Email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                UserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                Email = User.FindFirst(ClaimTypes.Email)?.Value
             });
         }
 
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult> GetAll()
+        {
+            return Ok(await _userService.GetAllAsync());
+        }
 
+        [Authorize]
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var user = _userService.GetByIdAsync(id);
+            return user == null ? NotFound() : Ok(user);
+
+        }
+
+        [Authorize]
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            await _userService.DeleteAsync(id);
+            return NoContent();
+
+        }
+
+        [Authorize]
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromBody] UpdateUserDto dto)
+        {
+            await _userService.UpdateAsync(id, dto);
+            return NoContent();
+        }
     }
 }
